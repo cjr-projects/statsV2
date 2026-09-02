@@ -192,6 +192,8 @@
   /* compact in-game header strip */
   .game-strip{ display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding: 4px 0 10px; border-top:1px solid var(--line); margin-top:2px; }
+  .gs-avatar{ width:40px; height:40px; border-radius:10px; object-fit:cover; border:1.5px solid var(--line); flex-shrink:0; }
+  .gs-left{ flex:1; min-width:0; }
   .gs-name-row{ display:flex; align-items:baseline; gap:6px; }
   .gs-name{ font-size:16px; font-weight:800; color:var(--text); }
   .gs-num{ font-size:13px; font-weight:700; color:var(--blue); }
@@ -234,7 +236,7 @@
       </div>
     </div>
 
-    <div class="section-label">Photos <span class="section-hint-inline">— optional, up to 2, shown on the end-of-game card</span></div>
+    <div class="section-label">Photo <span class="section-hint-inline">— optional, shows on the tracker &amp; the end-of-game card</span></div>
     <div class="photo-picker" id="photoPicker"></div>
     <input type="file" id="photoInput" accept="image/*" class="hidden">
 
@@ -262,6 +264,7 @@
   </div>
 
   <div class="game-strip">
+    <img class="gs-avatar hidden" id="gsAvatar" alt="">
     <div class="gs-left">
       <div class="gs-name-row"><span class="gs-name" id="gsName">Player</span><span class="gs-num num" id="gsNum"></span></div>
       <div class="gs-sub-row"><span class="gs-opp" id="gsOpp">vs Opponent</span><span class="gs-chip" id="gsHA">Home</span></div>
@@ -362,6 +365,9 @@
       <div class="score-dash">—</div>
       <div class="score-field"><label id="scoreThemLabel">Opponent</label><input type="text" id="scoreThem" inputmode="numeric" placeholder="0"></div>
     </div>
+    <div class="section-label" style="margin-top:0;">Photos <span class="section-hint-inline">— optional, up to 3, shown on the card</span></div>
+    <div class="photo-picker" id="confirmPhotoPicker"></div>
+    <input type="file" id="confirmPhotoInput" accept="image/*" class="hidden">
     <div class="modal-actions">
       <button class="btn-cancel" id="scoreCancelBtn">Back</button>
       <button class="btn-confirm" id="scoreConfirmBtn">Build Game Card</button>
@@ -401,9 +407,11 @@ const state = {
   shiftByPeriod: {'1':1,'2':1,'3':1,'OT':1},
   events: [],
   finalScore: {us:'', them:''},
-  photos: []
+  photos: [],
+  confirmPhotos: []
 };
-const MAX_PHOTOS = 2;
+const SETUP_MAX = 1;
+const CONFIRM_MAX = 3;
 let nextId = 1;
 
 /* ==================== CRASH-SAFE PERSISTENCE ==================== */
@@ -451,12 +459,14 @@ function loadSaved(){
 function applySaved(p){
   Object.assign(state, p.state);
   if(!state.photos) state.photos = [];
+  if(!state.confirmPhotos) state.confirmPhotos = [];
   nextId = p.nextId || 1;
   const m = p.meta || {};
   setVal('playerName', m.player); setVal('playerNumber', m.number);
   setVal('gameDate', m.date); setVal('gameTime', m.time);
   setVal('opponent', m.opponent); setVal('notes', m.notes);
-  renderPhotoPicker();
+  renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
+  renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
   render();
 }
 function applySavedMetaOnly(p){
@@ -467,8 +477,9 @@ function applySavedMetaOnly(p){
   if(p.state){
     if(p.state.homeAway) state.homeAway = p.state.homeAway;
     if(p.state.photos) state.photos = p.state.photos;
+    if(p.state.confirmPhotos) state.confirmPhotos = p.state.confirmPhotos;
   }
-  renderPhotoPicker();
+  renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
 }
 function setVal(id, v){ const el = document.getElementById(id); if(el && v != null) el.value = v; }
 
@@ -521,52 +532,86 @@ function compressImage(file){
     reader.readAsDataURL(file);
   });
 }
-function renderPhotoPicker(){
-  const wrap = document.getElementById('photoPicker');
+function renderPhotoSlots(containerId, arr, max){
+  const wrap = document.getElementById(containerId);
   if(!wrap) return;
   let html = '';
-  for(let i=0;i<MAX_PHOTOS;i++){
-    if(state.photos[i]){
-      html += '<div class="photo-slot filled"><img src="'+state.photos[i]+'"><button class="rm" data-idx="'+i+'">×</button></div>';
+  for(let i=0;i<max;i++){
+    if(arr[i]){
+      html += '<div class="photo-slot filled"><img src="'+arr[i]+'"><button class="rm" data-idx="'+i+'">×</button></div>';
     } else {
       html += '<div class="photo-slot add-slot" data-add="1"><span class="plus">+</span><span class="add-lbl">Add photo</span></div>';
     }
   }
   wrap.innerHTML = html;
 }
-async function addPhotoFiles(fileList){
-  const files = Array.from(fileList || []).slice(0, MAX_PHOTOS - state.photos.length);
+async function addPhotosToArray(arr, max, fileList){
+  const files = Array.from(fileList || []).slice(0, max - arr.length);
   for(const f of files){
     if(!f.type || !f.type.startsWith('image/')) continue;
-    try{ state.photos.push(await compressImage(f)); }catch(e){}
+    try{ arr.push(await compressImage(f)); }catch(e){}
   }
-  renderPhotoPicker();
-  saveState();
 }
-document.getElementById('photoInput').addEventListener('change', (e)=>{
-  addPhotoFiles(e.target.files);
+
+document.getElementById('photoInput').addEventListener('change', async (e)=>{
+  await addPhotosToArray(state.photos, SETUP_MAX, e.target.files);
   e.target.value = '';
+  renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
+  render(); saveState();
 });
 document.getElementById('photoPicker').addEventListener('click', (e)=>{
   const rm = e.target.closest('.rm');
   if(rm){
     state.photos.splice(parseInt(rm.getAttribute('data-idx'),10), 1);
-    renderPhotoPicker(); saveState();
+    renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
+    render(); saveState();
     return;
   }
-  if(e.target.closest('.add-slot') && state.photos.length < MAX_PHOTOS){
+  if(e.target.closest('.add-slot') && state.photos.length < SETUP_MAX){
     document.getElementById('photoInput').click();
   }
 });
 document.getElementById('photoPicker').addEventListener('dragover', (e)=>{ e.preventDefault(); });
-document.getElementById('photoPicker').addEventListener('drop', (e)=>{
+document.getElementById('photoPicker').addEventListener('drop', async (e)=>{
   e.preventDefault();
-  if(e.dataTransfer && e.dataTransfer.files) addPhotoFiles(e.dataTransfer.files);
+  if(e.dataTransfer && e.dataTransfer.files){
+    await addPhotosToArray(state.photos, SETUP_MAX, e.dataTransfer.files);
+    renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
+    render(); saveState();
+  }
+});
+
+document.getElementById('confirmPhotoInput').addEventListener('change', async (e)=>{
+  await addPhotosToArray(state.confirmPhotos, CONFIRM_MAX, e.target.files);
+  e.target.value = '';
+  renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
+  saveState();
+});
+document.getElementById('confirmPhotoPicker').addEventListener('click', (e)=>{
+  const rm = e.target.closest('.rm');
+  if(rm){
+    state.confirmPhotos.splice(parseInt(rm.getAttribute('data-idx'),10), 1);
+    renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
+    saveState();
+    return;
+  }
+  if(e.target.closest('.add-slot') && state.confirmPhotos.length < CONFIRM_MAX){
+    document.getElementById('confirmPhotoInput').click();
+  }
+});
+document.getElementById('confirmPhotoPicker').addEventListener('dragover', (e)=>{ e.preventDefault(); });
+document.getElementById('confirmPhotoPicker').addEventListener('drop', async (e)=>{
+  e.preventDefault();
+  if(e.dataTransfer && e.dataTransfer.files){
+    await addPhotosToArray(state.confirmPhotos, CONFIRM_MAX, e.dataTransfer.files);
+    renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
+    saveState();
+  }
 });
 
 /* ============================ VIEWS ============================ */
 function showSetup(){
-  renderPhotoPicker();
+  renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
   document.getElementById('setupView').classList.remove('hidden');
   document.getElementById('trackerView').classList.add('hidden');
   document.getElementById('reportView').classList.add('hidden');
@@ -683,6 +728,13 @@ function render(){
   const gsHA = document.getElementById('gsHA');
   gsHA.textContent = state.homeAway;
   gsHA.classList.toggle('away', state.homeAway==='Away');
+  const gsAvatar = document.getElementById('gsAvatar');
+  if(state.photos && state.photos[0]){
+    gsAvatar.src = state.photos[0];
+    gsAvatar.classList.remove('hidden');
+  } else {
+    gsAvatar.classList.add('hidden');
+  }
 
   const log = document.getElementById('logList');
   if(!state.events.length){ log.innerHTML = '<div class="empty-log">No events logged yet</div>'; }
@@ -823,13 +875,17 @@ function loadImage(src){
 async function drawCard(){
   const cv = document.getElementById('cardCanvas');
   const ctx = cv.getContext('2d');
-  const hasPhotos = state.photos && state.photos.length > 0;
-  const photoBandH = 300;
-  cv.height = 1500 + (hasPhotos ? photoBandH + 40 : 0);
+  const allPhotos = [].concat(state.photos||[], state.confirmPhotos||[]).slice(0,4);
+  const hasPhotos = allPhotos.length > 0;
+  const photoRows = hasPhotos ? Math.ceil(allPhotos.length/2) : 0;
+  const photoRowH = photoRows <= 1 ? 300 : 230;
+  const photoGap = 20;
+  const photoBandTotalH = hasPhotos ? photoRows*photoRowH + (photoRows-1)*photoGap : 0;
+  cv.height = 1500 + (hasPhotos ? photoBandTotalH + 40 : 0);
   const W = cv.width, H = cv.height;
   const F = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const m = currentMeta(), g = gameTotals(null), r = resultInfo();
-  const photoImgs = hasPhotos ? await Promise.all(state.photos.map(loadImage)) : [];
+  const photoImgs = hasPhotos ? await Promise.all(allPhotos.map(loadImage)) : [];
 
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = C.ice; ctx.fillRect(0,0,W,H);
@@ -873,25 +929,32 @@ async function drawCard(){
     y += 46;
   }
 
-  // optional photo band (up to 2 photos, cover-fit into rounded frames)
+  // optional photo grid — up to 4 photos (1 from setup + up to 3 from the confirm step),
+  // laid out max 2 per row, cover-fit into rounded frames
   if(photoImgs.length){
     y += 6;
-    const gapP = 20, totalW = W - 140, n = photoImgs.length;
-    const eachW = n===1 ? Math.min(totalW, 480) : (totalW - gapP)/2;
-    let px = (W - (eachW*n + gapP*(n-1)))/2;
-    photoImgs.forEach(img=>{
-      ctx.save();
-      roundRect(ctx, px, y, eachW, photoBandH, 20);
-      ctx.clip();
-      const scale = Math.max(eachW/img.width, photoBandH/img.height);
-      const dw = img.width*scale, dh = img.height*scale;
-      ctx.drawImage(img, px + (eachW-dw)/2, y + (photoBandH-dh)/2, dw, dh);
-      ctx.restore();
-      ctx.strokeStyle = C.line; ctx.lineWidth = 3;
-      roundRect(ctx, px, y, eachW, photoBandH, 20); ctx.stroke();
-      px += eachW + gapP;
-    });
-    y += photoBandH + 34;
+    const totalW = W - 140;
+    let idx = 0;
+    for(let row=0; row<photoRows; row++){
+      const itemsInRow = Math.min(2, photoImgs.length - idx);
+      const eachW = itemsInRow===1 ? Math.min(totalW, 480) : (totalW - photoGap)/2;
+      let px = (W - (eachW*itemsInRow + photoGap*(itemsInRow-1)))/2;
+      for(let c=0;c<itemsInRow;c++){
+        const img = photoImgs[idx++];
+        ctx.save();
+        roundRect(ctx, px, y, eachW, photoRowH, 20);
+        ctx.clip();
+        const scale = Math.max(eachW/img.width, photoRowH/img.height);
+        const dw = img.width*scale, dh = img.height*scale;
+        ctx.drawImage(img, px + (eachW-dw)/2, y + (photoRowH-dh)/2, dw, dh);
+        ctx.restore();
+        ctx.strokeStyle = C.line; ctx.lineWidth = 3;
+        roundRect(ctx, px, y, eachW, photoRowH, 20); ctx.stroke();
+        px += eachW + photoGap;
+      }
+      y += photoRowH + photoGap;
+    }
+    y += 14;
   }
 
   // matchup line
@@ -1028,6 +1091,7 @@ document.getElementById('endGameBtn').addEventListener('click', ()=>{
   document.getElementById('scoreThemLabel').textContent = (currentMeta().opponent || 'Opponent').slice(0,14);
   document.getElementById('scoreUs').value = state.finalScore.us;
   document.getElementById('scoreThem').value = state.finalScore.them;
+  renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
   document.getElementById('scoreModal').classList.remove('hidden');
 });
 document.getElementById('scoreCancelBtn').addEventListener('click', ()=>{
@@ -1083,13 +1147,15 @@ function resetAll(){
   state.homeAway = 'Home';
   state.finalScore = {us:'', them:''};
   state.photos = [];
+  state.confirmPhotos = [];
   nextId = 1;
   document.getElementById('opponent').value='';
   document.getElementById('notes').value='';
   document.getElementById('gameTime').value='';
   document.getElementById('gameDate').valueAsDate = new Date();
   clearSaved();
-  renderPhotoPicker();
+  renderPhotoSlots('photoPicker', state.photos, SETUP_MAX);
+  renderPhotoSlots('confirmPhotoPicker', state.confirmPhotos, CONFIRM_MAX);
   render();
 }
 
