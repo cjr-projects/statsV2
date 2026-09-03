@@ -183,8 +183,12 @@
   /* ---------- SETUP VIEW ---------- */
   #setupView{ max-width:640px; margin:0 auto; padding-bottom:40px; }
   .setup-header{ padding:26px 16px 22px; text-align:center; border-bottom:3px solid var(--black); background:var(--surface); }
-  .setup-tag{ display:inline-block; margin-top:10px; font-family:var(--font-body); font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--blue); background:var(--blue-dim); border:1.5px solid var(--black); border-radius:999px; padding:4px 12px; }
-  .setup-tagline{ font-family:var(--font-body); font-size:15px; font-weight:600; color:var(--text); margin:14px auto 0; line-height:1.4; max-width:290px; }
+  .setup-headline{ font-family:var(--font-display); font-size:44px; font-weight:900; letter-spacing:0.01em;
+    text-transform:uppercase; color:var(--black); margin-top:8px; line-height:0.95; }
+  .setup-headline .plus{ color:var(--blue); }
+  .setup-tagline{ font-family:var(--font-body); font-size:14px; font-weight:500; color:var(--text-dim);
+    margin:10px auto 0; line-height:1.4; max-width:300px; }
+  .setup-tag{ display:inline-block; margin-top:14px; font-family:var(--font-body); font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--blue); background:var(--blue-dim); border:1.5px solid var(--black); border-radius:999px; padding:4px 12px; }
   .setup-main{ padding:16px 16px 30px; }
   .section-hint-inline{ text-transform:none; letter-spacing:normal; font-weight:400; color:var(--text-dim); }
   .btn-start{ width:100%; margin-top:24px; padding:16px 0; border:2.5px solid var(--black); border-radius:12px;
@@ -194,16 +198,14 @@
 
   /* photo picker (no album — a couple of dedicated slots) */
   .photo-picker{ display:flex; gap:10px; margin-bottom:8px; }
-  .photo-slot{ flex:1; aspect-ratio:1; border-radius:12px; overflow:hidden; position:relative;
+  .photo-slot{ width:88px; height:88px; flex:0 0 auto; border-radius:12px; overflow:hidden; position:relative;
     background:var(--surface-2); border:2px dashed var(--line); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
   .photo-slot.filled{ border-style:solid; border-color:var(--black); border-width:2.5px; cursor:default; }
   .photo-slot img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .photo-slot .add-lbl{ font-size:11px; color:var(--text-dim); font-weight:700; text-transform:uppercase;
-    letter-spacing:0.04em; text-align:center; padding:0 8px; font-family:var(--font-body); }
-  .photo-slot .plus{ font-size:26px; color:var(--text-dim); display:block; margin-bottom:2px; line-height:1; }
-  .photo-slot .rm{ position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:999px;
-    background:var(--black); color:#fff; border:none; font-size:14px; font-weight:800; line-height:1;
+  .photo-slot .plus{ font-size:26px; color:var(--text-dim); display:block; line-height:1; font-weight:600; }
+  .photo-slot .rm{ position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:999px;
+    background:var(--black); color:#fff; border:none; font-size:12px; font-weight:800; line-height:1;
     font-family:inherit; }
 
   /* compact in-game header strip */
@@ -229,8 +231,9 @@
 <div id="setupView">
   <header class="setup-header">
     <div class="team-lockup"><div class="team">SHAHA</div></div>
+    <div class="setup-headline">Track <span class="plus">+</span> Share</div>
+    <div class="setup-tagline">Log your Panthers' game stats live, then share them with fans and family.</div>
     <div class="setup-tag">Free · No Sign-Up</div>
-    <div class="setup-tagline">Track it live. Walk away with something worth keeping.</div>
   </header>
   <main class="setup-main">
     <div class="meta-row row-player">
@@ -558,7 +561,7 @@ function renderPhotoSlots(containerId, arr, max){
     if(arr[i]){
       html += '<div class="photo-slot filled"><img src="'+arr[i]+'"><button class="rm" data-idx="'+i+'">×</button></div>';
     } else {
-      html += '<div class="photo-slot add-slot" data-add="1"><span class="plus">+</span><span class="add-lbl">Add photo</span></div>';
+      html += '<div class="photo-slot add-slot" data-add="1"><span class="plus">+</span></div>';
     }
   }
   wrap.innerHTML = html;
